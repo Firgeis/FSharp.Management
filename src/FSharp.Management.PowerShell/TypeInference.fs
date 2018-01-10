@@ -2,6 +2,7 @@
 
 open System
 open System.Management.Automation
+open System.Collections.ObjectModel
 open FSharp.Management
 
 type PSCommandSignature =
@@ -29,6 +30,7 @@ let getOutputTypes (command:CommandInfo) =
 let buildResultType (resultObjectTypes:Type[]) =
     let tys =
         resultObjectTypes
+        |> Array.append [| typeof<Collection<PSObject>> |]
         |> Array.map (fun ty ->
             typedefof<list<_>>.MakeGenericType([|ty|]))
     let choise =

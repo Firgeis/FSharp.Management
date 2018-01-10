@@ -2,6 +2,8 @@
 
 open FSharp.Management
 open Expecto
+open System.Management.Automation
+open System.Collections.ObjectModel
 
 let [<Literal>]Modules = "Microsoft.PowerShell.Management;Microsoft.PowerShell.Core"
 
@@ -11,7 +13,7 @@ let [<Tests>] psTest =
     testList "PoweShell TP Tests" [
         test "Get system drive" {
             match PS.``Get-Item``(path=[|@"C:\"|]) with
-            | Success(Choice5Of5 dirs) ->
+            | Success(Choice6Of6 dirs) ->
                 Expect.equal dirs.Length 1 ""
                 Expect.equal ((Seq.head dirs).FullName) @"C:\" ""
             | _ -> failwith "Unexpected result"
@@ -23,18 +25,18 @@ let [<Tests>] psTest =
         }
         test "Get list of registered snapins" {
             match PS.``Get-PSSnapin``(registered = true) with
-            | Success(snapins) ->
+            | Success(Choice2Of2 (snapins)) ->
                 Expect.equal (snapins.IsEmpty) false ""
             | _ -> failwith "Unexpected result"
         }
         test "Get random number from range" {
             match PS.``Get-Random``(minimum = 0, maximum = 10) with
-            | Success(Choice1Of3 [value]) when value >=0 && value <= 10 -> ()
+            | Success(Choice2Of4 [value]) when value >=0 && value <= 10 -> ()
             | _ -> failwith "Unexpected result"
         }
         test "Get events from event log" {
             match PS.``Get-EventLog``(logName="Application", entryType=[|"Error"|], newest=2) with
-            | Success(Choice2Of3 entries) ->
+            | Success(Choice3Of4 entries) ->
                 Expect.equal entries.Length 2 ""
             | _ -> failwith "Unexpected result"
         }
@@ -58,15 +60,21 @@ let [<Tests>] psTest =
             Expect.equal psCustom.Runspace.RunspaceStateInfo.State
                          System.Management.Automation.Runspaces.RunspaceState.Closed ""
         }
-        test "Change location" { // This Cmdlet has a typed OutputType, but doesn't actually return anything
-            match PS.``Set-Location``(path="""""") with
-            | Success (resultObj) ->
-                match box resultObj with
-                | null -> ignore()
-                | _ -> failwith "Unexpected result"
+        test "Get a missing variable" { //Produces an exception
+            match PS.``Get-Variable`` (name=[|"Missing"|], errorAction=ActionPreference.Stop) with
+            | Failure (resultObj) ->
+                let result = List.head resultObj
+                Expect.equal (result.GetType()) (typeof<System.Management.Automation.ErrorRecord>) "" 
+            | _ -> failwith "Unexpected result"
+        }
+        test "Get execution policies as a list" { //Produces a generic output
+            match PS.``Get-ExecutionPolicy``(list=true) with
+            | Success (Choice1Of2 result) -> 
+                Expect.equal (result.Head.GetType()) (typeof<Collection<PSObject>>) ""
             | _ -> failwith "Unexpected result"
         }
     ]
+
 
 let [<Literal>]ModuleFile = __SOURCE_DIRECTORY__ + @"\testModule.psm1"
 type PSFileModule =  PowerShellProvider< ModuleFile >
@@ -75,7 +83,7 @@ let [<Tests>] psModuleTests =
     testCase "Call a function defined in a module file" <| fun _ ->
         let testString = "testString"
         match PSFileModule.doSomething(test=testString) with
-        | Success(stringList) ->
+        | Success(Choice2Of2 stringList) ->
             Expect.equal stringList.Length 1 ""
             Expect.equal (Seq.head stringList) testString ""
         | _ -> failwith "Unexpected result"
@@ -86,7 +94,7 @@ let [<Tests>] ps64tests =
     testList "PowerShell Type Provider 64 Tests" [
         test "Get system drive x64" {
             match PS64.``Get-Item``(path=[|@"C:\"|]) with
-            | Success(Choice5Of5 dirs) ->
+            | Success(Choice6Of6 dirs) ->
                 Expect.equal dirs.Length 1 ""
                 Expect.equal ((Seq.head dirs).FullName) @"C:\" ""
             | _ -> failwith "Unexpected result"
@@ -98,7 +106,7 @@ let [<Tests>] ps64tests =
         }
         test "Get list of registered snapins x64" {
             match PS64.``Get-PSSnapin``(registered = true) with
-            | Success(snapins) ->
+            | Success(Choice2Of2 snapins) ->
                 Expect.equal snapins.IsEmpty false ""
             | _ -> failwith "Unexpected result"
         }
